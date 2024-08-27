@@ -1,31 +1,49 @@
-from sec_api import QueryApi
+import requests
+import json
+import boto3
 
-queryApi = QueryApi(api_key="e87e55b9ef3850879b46121c8aa1254876d5ea6333813507d101b35f7925506b")
-query = {
-  "query": "ticker:TSLA AND filedAt:[2020-01-01 TO 2021-12-31] AND formType:\"10-K\"",
-  "from": "0",
-  "size": "10",
-  "sort": [{ "filedAt": { "order": "desc" } }]
+filing_url = "https://www.sec.gov/Archives/edgar/data/320193/000032019321000056/aapl-20210327.htm"
+
+xbrl_converter_api_endpoint = "https://api.sec-api.io/xbrl-to-json"
+
+api_key = "e87e55b9ef3850879b46121c8aa1254876d5ea6333813507d101b35f7925506b"
+
+final_url = f"{xbrl_converter_api_endpoint}?htm-url={filing_url}&token={api_key}"
+
+response = requests.get(final_url)
+
+xbrl_json = json.loads(response.text)
+
+statements_of_income = xbrl_json.get('StatementsOfIncome', {})
+
+statements_of_income_str = json.dumps(statements_of_income, indent=4)
+
+client = boto3.client("bedrock-runtime", region_name="us-east-1")
+
+model_id = "anthropic.claude-3-haiku-20240307-v1:0"
+
+prompt = f"""Analyze the StatementsOfIncome to assess the financial health and risk profile of a company. Act as a Know Your Customer Analyst.
+StatementsOfIncome:
+{statements_of_income_str}
+"""
+
+native_request = {
+    "anthropic_version": "bedrock-2023-05-31",
+    "max_tokens": 1024,
+    "temperature": 0.0,
+    "messages": [
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": prompt}],
+        }
+    ],
 }
 
-response = queryApi.get_filings(query)
-import json 
+request = json.dumps(native_request)
 
-API_KEY = 'e87e55b9ef3850879b46121c8aa1254876d5ea6333813507d101b35f7925506b'
-from sec_api import ExtractorApi
+response = client.invoke_model(modelId=model_id, body=request)
 
-extractorApi = ExtractorApi(API_KEY)
+model_response = json.loads(response["body"].read())
 
-print(json.dumps(response["filings"][0], indent=2))
-for filing in response['filings']:
-    print(f"Company: {filing['companyName']}")
-    print(f"Ticker: {filing['ticker']}")
-    print(f"Form Type: {filing['formType']}")
-    print(f"Filed At: {filing['filedAt']}")
-    print(f"Link to Filing: {filing['linkToFilingDetails']}")
-    print("\n")
-    # Get the full-text filing document URL
-    document_url = filing['linkToTxt']
-    item_1_a_text  = extractorApi.get_section(document_url, '1A', 'text')
-    input_text = item_1_a_text[0:1500]
-print(item_1_a_text[0:1500])
+response_text = model_response["content"][0]["text"]
+print(response_text)
