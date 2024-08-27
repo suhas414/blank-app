@@ -1,6 +1,5 @@
 import requests
 import json
-import boto3
 
 filing_url = "https://www.sec.gov/Archives/edgar/data/320193/000032019321000056/aapl-20210327.htm"
 
