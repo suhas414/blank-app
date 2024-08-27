@@ -12,7 +12,7 @@ response = queryApi.get_filings(query)
 import json 
 
 API_KEY = 'e87e55b9ef3850879b46121c8aa1254876d5ea6333813507d101b35f7925506b'
-!pip install -q sec-api
+pip install sec-api
 from sec_api import ExtractorApi
 
 extractorApi = ExtractorApi(API_KEY)
