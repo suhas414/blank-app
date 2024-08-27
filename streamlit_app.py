@@ -1,5 +1,3 @@
-import streamlit as st
-import sec_api
 from sec_api import QueryApi
 
 queryApi = QueryApi(api_key="e87e55b9ef3850879b46121c8aa1254876d5ea6333813507d101b35f7925506b")
