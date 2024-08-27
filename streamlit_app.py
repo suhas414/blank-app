@@ -1,6 +1,6 @@
 from sec_api import QueryApi
 
-queryApi = QueryApi(api_key="b0028d896f0fbf1bb8bb4d6851f003c5bcb78067362a656f29220f67018898e1")
+queryApi = QueryApi(api_key="e87e55b9ef3850879b46121c8aa1254876d5ea6333813507d101b35f7925506b")
 query = {
   "query": "ticker:TSLA AND filedAt:[2020-01-01 TO 2021-12-31] AND formType:\"10-K\"",
   "from": "0",
