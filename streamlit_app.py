@@ -1,49 +1,67 @@
 import requests
-import json
-import boto3
+import csv
 
-filing_url = "https://www.sec.gov/Archives/edgar/data/320193/000032019321000056/aapl-20210327.htm"
+def get_ticker(company_name):
+    url = "https://query2.finance.yahoo.com/v1/finance/search"
+    user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
+    params = {"q": company_name, "quotesCount": 1, "region": "US"}
 
-xbrl_converter_api_endpoint = "https://api.sec-api.io/xbrl-to-json"
+    try:
+        res = requests.get(url=url, params=params, headers={'User-Agent': user_agent})
+        res.raise_for_status()  # Raise an exception for HTTP errors
 
-api_key = "e87e55b9ef3850879b46121c8aa1254876d5ea6333813507d101b35f7925506b"
+        data = res.json()
 
-final_url = f"{xbrl_converter_api_endpoint}?htm-url={filing_url}&token={api_key}"
+        if 'quotes' in data and len(data['quotes']) > 0:
+            company_code = data['quotes'][0]['symbol']
+            return company_code
+        else:
+            print(f"No ticker found for company '{company_name}'.")
+            return None
+    except requests.RequestException as e:
+        print(f"Request failed: {e}")
+        return None
+    except KeyError as e:
+        print(f"Unexpected response format: {e}")
+        return None
 
-response = requests.get(final_url)
+def load_ticker_cik_mapping(file_path):
+    ticker_cik_map = {}
+    try:
+        with open(file_path, mode='r') as file:
+            reader = csv.reader(file)
+            for row in reader:
+                if len(row) == 2:
+                    ticker, cik = row
+                    ticker_cik_map[ticker.strip().upper()] = cik.strip()
+    except FileNotFoundError:
+        print(f"File not found: {file_path}")
+    except Exception as e:
+        print(f"Error reading file: {e}")
+    return ticker_cik_map
 
-xbrl_json = json.loads(response.text)
+def main():
+    # Path to the CSV file
+    file_path = 'tickers.csv'
 
-statements_of_income = xbrl_json.get('StatementsOfIncome', {})
+    # Load the ticker-CIK mapping from the CSV file
+    ticker_cik_map = load_ticker_cik_mapping(file_path)
 
-statements_of_income_str = json.dumps(statements_of_income, indent=4)
+    # Prompt user for company name
+    company_name = input("Enter company name: ").strip()
 
-client = boto3.client("bedrock-runtime", region_name="us-east-1")
+    # Look up ticker symbol
+    ticker_symbol = get_ticker(company_name)
 
-model_id = "anthropic.claude-3-haiku-20240307-v1:0"
+    if ticker_symbol:
+        # Retrieve and display the CIK number
+        cik_number = ticker_cik_map.get(ticker_symbol.upper())
+        if cik_number:
+            print(f"The CIK number for ticker symbol '{ticker_symbol}' is {cik_number}.")
+        else:
+            print(f"No CIK number found for ticker symbol '{ticker_symbol}'.")
+    else:
+        print("Failed to retrieve ticker symbol.")
 
-prompt = f"""Analyze the StatementsOfIncome to assess the financial health and risk profile of a company. Act as a Know Your Customer Analyst.
-StatementsOfIncome:
-{statements_of_income_str}
-"""
-
-native_request = {
-    "anthropic_version": "bedrock-2023-05-31",
-    "max_tokens": 1024,
-    "temperature": 0.0,
-    "messages": [
-        {
-            "role": "user",
-            "content": [{"type": "text", "text": prompt}],
-        }
-    ],
-}
-
-request = json.dumps(native_request)
-
-response = client.invoke_model(modelId=model_id, body=request)
-
-model_response = json.loads(response["body"].read())
-
-response_text = model_response["content"][0]["text"]
-print(response_text)
+if __name__ == "__main__":
+    main()
